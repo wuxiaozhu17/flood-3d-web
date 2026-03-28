@@ -1,7 +1,6 @@
-// 修复：移除无效地形加载，改用基础Cesium初始化，彻底解决API报错
+// 修复：移除无效地形API，改用基础Cesium初始化，彻底解决API报错
 Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
 const viewer = new Cesium.Viewer('cesiumContainer', {
-    // 移除createWorldTerrain，避免API报错
     baseLayerPicker: false,
     homeButton: false,
     sceneModePicker: false,
@@ -10,7 +9,7 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
     fullscreenButton: false,
     navigationHelpButton: false,
     geocoder: false,
-    // 用默认影像底图，不加载地形
+    // 用开源OSM底图，绕开地形权限问题
     imageryProvider: new Cesium.OpenStreetMapImageryProvider({
         url: 'https://tile.openstreetmap.org/'
     })
