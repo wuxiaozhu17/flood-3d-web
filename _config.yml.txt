@@ -1,0 +1,2 @@
+# 禁用Jekyll，避免CSP拦截eval
+safe: false
