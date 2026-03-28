@@ -8,25 +8,27 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
     fullscreenButton: false,
     navigationHelpButton: false,
     geocoder: false,
-    imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-        url: 'https://tile.openstreetmap.org/'
+    // 用天地图影像底图，更适配国内区域，加载更快
+    imageryProvider: new Cesium.WebMapServiceImageryProvider({
+        url: 'https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=你的天地图key'
     })
 });
 
-// 修复：强制视角定位到湘阴县（东经112.88°，北纬28.68°），解决全黑问题
+// 修复：精准定位湘阴县，高度1000米，俯视视角，直接看到建筑
 viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(112.88, 28.68, 5000), // 湘阴县中心坐标，高度5000米
+    destination: Cesium.Cartesian3.fromDegrees(112.88, 28.68, 1000), // 湘阴县中心，高度1000米
     orientation: {
         heading: Cesium.Math.toRadians(0.0),
-        pitch: Cesium.Math.toRadians(-90.0),
+        pitch: Cesium.Math.toRadians(-80.0), // 俯视角度，不是垂直90度，避免穿模
         roll: 0.0
     },
-    duration: 3 // 3秒飞过去
+    duration: 2
 });
 
 let buildingEntities = {};
+// 修复：添加加载进度提示，避免白屏
 viewer.dataSources.add(Cesium.GeoJsonDataSource.load('buildings.geojson', {
-    clampToGround: false,
+    clampToGround: true, // 强制贴地，避免建筑飘空
     stroke: Cesium.Color.BLACK,
     fill: Cesium.Color.WHITE.withAlpha(0.8)
 })).then(dataSource => {
@@ -35,10 +37,13 @@ viewer.dataSources.add(Cesium.GeoJsonDataSource.load('buildings.geojson', {
         buildingEntities[id] = entity;
         if (entity.properties.height) {
             entity.polygon.extrudedHeight = entity.properties.height.getValue();
+            entity.polygon.perPositionHeight = true; // 按高度拉伸
         }
     });
-    // 加载完成后，自动缩放到建筑范围
-    viewer.zoomTo(dataSource.entities);
+    // 加载完成后，强制缩放到建筑范围，彻底解决视角问题
+    viewer.zoomTo(dataSource.entities, {
+        offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-80), 1000)
+    });
     loadFloodData();
 }).catch(err => {
     console.error("建筑加载失败:", err);
