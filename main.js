@@ -1,4 +1,3 @@
-// 修复：移除无效地形API，改用基础Cesium初始化，彻底解决API报错
 Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
 const viewer = new Cesium.Viewer('cesiumContainer', {
     baseLayerPicker: false,
@@ -9,10 +8,20 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
     fullscreenButton: false,
     navigationHelpButton: false,
     geocoder: false,
-    // 用开源OSM底图，绕开地形权限问题
     imageryProvider: new Cesium.OpenStreetMapImageryProvider({
         url: 'https://tile.openstreetmap.org/'
     })
+});
+
+// 修复：强制视角定位到湘阴县（东经112.88°，北纬28.68°），解决全黑问题
+viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(112.88, 28.68, 5000), // 湘阴县中心坐标，高度5000米
+    orientation: {
+        heading: Cesium.Math.toRadians(0.0),
+        pitch: Cesium.Math.toRadians(-90.0),
+        roll: 0.0
+    },
+    duration: 3 // 3秒飞过去
 });
 
 let buildingEntities = {};
@@ -28,6 +37,8 @@ viewer.dataSources.add(Cesium.GeoJsonDataSource.load('buildings.geojson', {
             entity.polygon.extrudedHeight = entity.properties.height.getValue();
         }
     });
+    // 加载完成后，自动缩放到建筑范围
+    viewer.zoomTo(dataSource.entities);
     loadFloodData();
 }).catch(err => {
     console.error("建筑加载失败:", err);
@@ -98,5 +109,3 @@ function updateBuildings(currentTime) {
         `;
     });
 }
-
-viewer.zoomTo(viewer.entities);
