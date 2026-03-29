@@ -1,83 +1,21 @@
-// 最终版：Leaflet 真3D建筑（完美适配你带height的GeoJSON）
-const map = L.map('map').setView([28.68, 112.88], 16);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-let buildings = {};
-let floodData = {};
-
-// 加载3D建筑（核心：按height拉伸）
-fetch('buildings.geojson')
-  .then(res => res.json())
-  .then(geoData => {
-    // 用Leaflet的3D插件，直接按height拉伸
-    const layer = L.geoJSON(geoData, {
-      style: (feature) => ({
-        color: '#000',
-        weight: 1,
-        fillColor: 'white',
-        fillOpacity: 0.8,
-        // 3D拉伸：按height字段设置高度
-        renderer: L.canvas(),
-        extrude: feature.properties.height || 10
-      })
-    }).addTo(map);
-
-    // 绑定建筑ID和高度
-    layer.eachLayer(layer => {
-      const id = layer.feature.properties.id;
-      const height = layer.feature.properties.height;
-      buildings[id] = layer;
-
-      // 点击弹窗
-      layer.bindPopup(`
-        <h3>建筑ID: ${id}</h3>
-        <p>状态：安全</p>
-        <p>水深：0 米</p>
-        <p>建筑高度：${height} 米</p>
-      `);
-    });
-
-    // 加载洪水数据
-    fetch('flood_animation_data.json')
-      .then(res => res.json())
-      .then(data => {
-        floodData = data;
-        const times = Object.keys(data);
-        const slider = document.getElementById('timeSlider');
-        const label = document.getElementById('timeLabel');
-
-        slider.max = times.length - 1;
-        label.textContent = times[0];
-
-        slider.oninput = () => {
-          const t = times[slider.value];
-          label.textContent = t;
-          updateBuildings(floodData[t]);
-        };
-        updateBuildings(floodData[times[0]]);
-      });
-  });
-
-// 建筑变色逻辑
-function updateBuildings(list) {
-  list.forEach(b => {
-    const layer = buildings[b.id];
-    if (!layer) return;
-
-    let color = 'white';
-    let status = '安全';
-    if (b.s === 1) { color = 'yellow'; status = '受威胁'; }
-    if (b.s === 2) { color = 'red'; status = '淹没'; }
-
-    layer.setStyle({ fillColor: color });
-    layer.setPopupContent(`
-      <h3>建筑ID: ${b.id}</h3>
-      <p>状态：${status}</p>
-      <p>水深：${b.d} 米</p>
-    `);
-  });
-}
-
-// 【关键】开启3D视角，直接看到立体效果
-map.getRenderer()._canvas.style.transform = 'perspective(1200px) rotateX(65deg)';
-map.getRenderer()._canvas.style.transformOrigin = 'center center';
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>湘阴县城区内涝三维可视化系统</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    .time-slider { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 80%; z-index: 1000; background: white; padding: 10px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="time-slider">
+    <input type="range" id="timeSlider" min="0" max="0" value="0">
+    <span id="timeLabel">0:00:00</span>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>
