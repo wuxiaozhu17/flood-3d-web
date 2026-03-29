@@ -1,43 +1,25 @@
-// 二维地图 + 真3D建筑 最终版（适配你带height的GeoJSON）
-const map = L.map('map').setView([28.68, 112.88], 16);
+// 初始化地图，直接定位湘阴县
+const map = L.map('map').setView([28.68, 112.88], 15);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// 开启3D视角（核心！）
-map.getRenderer()._canvas.style.transform = 'perspective(1000px) rotateX(60deg)';
-map.getRenderer()._canvas.style.transformOrigin = 'center center';
-
+// 加载建筑+洪水数据
 let buildings = {};
 let floodData = {};
 
-// 加载3D建筑（按height拉伸）
+// 加载GeoJSON建筑（用你原来的文件，直接读）
 fetch('buildings.geojson')
   .then(res => res.json())
   .then(geoData => {
     const layer = L.geoJSON(geoData, {
-      style: (feature) => ({
-        color: '#000',
-        weight: 1,
-        fillColor: 'white',
-        fillOpacity: 0.8,
-        // 3D拉伸：按height字段设置高度
-        renderer: L.canvas(),
-        extrude: feature.properties.height || 10
-      })
+      style: { color: 'black', fillColor: 'white', weight: 1, fillOpacity: 0.8 }
     }).addTo(map);
     
     // 绑定建筑ID
     layer.eachLayer(layer => {
       const id = layer.feature.properties.id;
-      const height = layer.feature.properties.height;
       buildings[id] = layer;
-      
       // 点击弹出气泡
-      layer.bindPopup(`
-        <h3>建筑ID: ${id}</h3>
-        <p>受灾状态: 安全</p>
-        <p>积水水深: 0米</p>
-        <p>建筑高度: ${height}米</p>
-      `);
+      layer.bindPopup(`<h3>建筑ID: ${id}</h3><p>受灾状态: 安全</p><p>积水水深: 0米</p>`);
     });
 
     // 加载洪水数据
@@ -85,12 +67,3 @@ function updateBuildings(buildingList) {
     `);
   });
 }
-
-// 鼠标拖拽旋转3D视角
-let isDragging = false;
-map.on('mousedown', () => isDragging = true);
-map.on('mouseup', () => isDragging = false);
-map.on('mousemove', (e) => {
-  if (!isDragging) return;
-  map.panBy([e.originalEvent.movementX, e.originalEvent.movementY]);
-});
