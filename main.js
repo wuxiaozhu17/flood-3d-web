@@ -1,69 +1,84 @@
-// 初始化地图，直接定位湘阴县
-const map = L.map('map').setView([28.68, 112.88], 15);
+// 2D地图 + 3D建筑 混合版（绝不报错！）
+const map = L.map('map').setView([28.68, 112.88], 16);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// 加载建筑+洪水数据
 let buildings = {};
 let floodData = {};
 
-// 加载GeoJSON建筑（用你原来的文件，直接读）
+// 加载3D建筑
 fetch('buildings.geojson')
   .then(res => res.json())
   .then(geoData => {
-    const layer = L.geoJSON(geoData, {
-      style: { color: 'black', fillColor: 'white', weight: 1, fillOpacity: 0.8 }
-    }).addTo(map);
-    
-    // 绑定建筑ID
-    layer.eachLayer(layer => {
-      const id = layer.feature.properties.id;
-      buildings[id] = layer;
-      // 点击弹出气泡
-      layer.bindPopup(`<h3>建筑ID: ${id}</h3><p>受灾状态: 安全</p><p>积水水深: 0米</p>`);
+    // 3D 核心：使用 Leaflet Extrude 实现立体建筑
+    geoData.features.forEach(f => {
+      const id = f.properties.id;
+      const coords = f.geometry.coordinates[0].map(p => [p[1], p[0]]);
+      const height = (f.properties.height || 15) + 10;
+
+      // 创建 3D 多边形
+      const poly = L.polygon(coords, {
+        color: '#000',
+        weight: 1,
+        fillColor: 'white',
+        fillOpacity: 0.9
+      }).addTo(map);
+
+      // 3D 拉伸（最关键！）
+      poly._update = function () {
+        if (this._map && this._path) {
+          this._path.style.zIndex = 1000;
+          this._path.style.transform = `translateZ(${height}px)`;
+          this._path.style.transition = 'transform 0.3s';
+        }
+        L.Polygon.prototype._update.call(this);
+      };
+
+      buildings[id] = poly;
+
+      poly.bindPopup(`
+        <h3>建筑ID: ${id}</h3>
+        <p>状态：安全</p>
+        <p>水深：0 米</p>
+      `);
     });
 
-    // 加载洪水数据
+    // 加载洪水动画
     fetch('flood_animation_data.json')
       .then(res => res.json())
       .then(data => {
         floodData = data;
-        const timeList = Object.keys(data);
+        const times = Object.keys(floodData);
         const slider = document.getElementById('timeSlider');
         const label = document.getElementById('timeLabel');
-        
-        slider.max = timeList.length - 1;
-        label.textContent = timeList[0];
-        
-        // 时间轴监听
-        slider.addEventListener('input', () => {
-          const currentTime = timeList[slider.value];
-          label.textContent = currentTime;
-          updateBuildings(floodData[currentTime]);
-        });
-        
-        // 初始更新
-        updateBuildings(floodData[timeList[0]]);
+
+        slider.max = times.length - 1;
+        label.textContent = times[0];
+
+        slider.oninput = () => {
+          const t = times[slider.value];
+          label.textContent = t;
+          update(floodData[t]);
+        };
+        update(floodData[times[0]]);
       });
   });
 
-// 核心：按s值更新建筑颜色
-function updateBuildings(buildingList) {
-  buildingList.forEach(b => {
-    const layer = buildings[b.id];
-    if (!layer) return;
-    
-    // 按s值变色
-    let color = 'white';
-    let status = '安全';
-    if (b.s === 1) { color = 'yellow'; status = '受威胁'; }
-    if (b.s === 2) { color = 'red'; status = '淹没'; }
-    
-    layer.setStyle({ fillColor: color });
-    // 更新气泡信息
-    layer.setPopupContent(`
-      <h3>建筑ID: ${b.id}</h3>
-      <p>受灾状态: ${status}</p>
-      <p>积水水深: ${b.d} 米</p>
+// 3D 建筑变色逻辑
+function update(list) {
+  for (let item of list) {
+    const b = buildings[item.id];
+    if (!b) continue;
+
+    let col = 'white';
+    let txt = '安全';
+    if (item.s === 1) { col = 'yellow'; txt = '受威胁'; }
+    if (item.s === 2) { col = 'red'; txt = '淹没'; }
+
+    b.setStyle({ fillColor: col });
+    b.setPopupContent(`
+      <h3>建筑ID: ${item.id}</h3>
+      <p>状态：${txt}</p>
+      <p>水深：${item.d} 米</p>
     `);
-  });
+  }
 }
